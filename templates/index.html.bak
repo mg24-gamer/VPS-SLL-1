@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MG24 MINI VPS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #050505; color: #e5e7eb; font-family: 'Segoe UI', sans-serif; padding-bottom: 80px; }
+        
+        /* New Mixed Theme CSS */
+        .theme-gradient { background: linear-gradient(to right, #10b981, #3b82f6, #a855f7, #ec4899); }
+        .theme-gradient-hover:hover { background: linear-gradient(to right, #059669, #2563eb, #9333ea, #db2777); }
+        .theme-text { background: linear-gradient(to right, #10b981, #3b82f6, #a855f7, #ec4899); -webkit-background-clip: text; color: transparent; text-shadow: 0 0 15px rgba(168, 85, 247, 0.3); }
+        .theme-active-border { border-bottom: 2px solid #a855f7; color: #a855f7; }
+        
+        .card-bg { background: #111; border: 1px solid #1f2937; }
+        .custom-scroll::-webkit-scrollbar { width: 3px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #111; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #a855f7; border-radius: 4px; }
+        .modal-enter { animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        @keyframes bounceIn {
+            0% { transform: scale(0); }
+            80% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        .fab { animation: bounceIn 0.5s; }
+    </style>
+</head>
+<body>
+
+    <div class="bg-black/50 backdrop-blur-md border-b border-purple-900/30 sticky top-0 z-30 px-6 py-4 shadow-lg">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <i class="fas fa-server text-xl theme-text"></i>
+                <h1 class="text-lg font-bold tracking-wider text-white theme-text">MG24 VPS</h1>
+            </div>
+            <div class="text-[10px] font-mono text-gray-400">
+                CPU: <span class="text-purple-400">{{ cpu }}%</span> | RAM: <span class="text-pink-400">{{ ram }}%</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="px-4 mt-6 grid grid-cols-2 gap-3">
+        <div class="card-bg p-4 rounded-xl flex flex-col items-center">
+            <span class="text-2xl font-bold text-white">{{ running_count }}</span>
+            <span class="text-[10px] text-gray-500 uppercase tracking-widest">Running</span>
+        </div>
+        <div class="card-bg p-4 rounded-xl flex flex-col items-center">
+            <span class="text-2xl font-bold text-white">{{ total_count }}</span>
+            <span class="text-[10px] text-gray-500 uppercase tracking-widest">Total</span>
+        </div>
+    </div>
+
+    <div class="px-4 mt-8 space-y-4">
+        {% for id, s in servers.items() %}
+        <div class="card-bg rounded-2xl overflow-hidden shadow-lg relative group">
+            <div class="absolute left-0 top-0 bottom-0 w-1 {{ 'theme-gradient shadow-[0_0_10px_#a855f7]' if s.status == 'running' else 'bg-red-500' }}"></div>
+            
+            <div class="p-5 pl-7">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 class="font-bold text-lg text-white">{{ id }}</h3>
+                        <p class="text-[10px] text-gray-500 font-mono mt-1">{{ s.cmd }}</p>
+                    </div>
+                    <span class="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider {{ 'bg-purple-900/30 text-purple-400 border border-purple-800/50' if s.status == 'running' else 'bg-red-900/20 text-red-400' }}">
+                        {{ s.status }}
+                    </span>
+                </div>
+
+                <div class="grid grid-cols-4 gap-2">
+                    {% if s.status == 'running' %}
+                    <a href="/action/{{ id }}/stop" class="bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg py-2 flex justify-center transition"><i class="fas fa-stop"></i></a>
+                    <a href="/action/{{ id }}/restart" class="bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 rounded-lg py-2 flex justify-center transition"><i class="fas fa-sync"></i></a>
+                    {% else %}
+                    <a href="/action/{{ id }}/start" class="bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-lg py-2 flex justify-center transition"><i class="fas fa-play"></i></a>
+                    <a href="/action/{{ id }}/delete" onclick="return confirm('Delete?')" class="bg-gray-700/30 hover:bg-gray-700/50 text-gray-400 rounded-lg py-2 flex justify-center transition"><i class="fas fa-trash"></i></a>
+                    {% endif %}
+                    <button onclick="toggleLog('{{ id }}')" class="bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg py-2 flex justify-center col-span-1 transition"><i class="fas fa-eye"></i></button>
+                    <button onclick="openSettings('{{ id }}')" class="bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 rounded-lg py-2 flex justify-center col-span-1 transition"><i class="fas fa-cog"></i></button>
+                </div>
+
+                <div id="log-box-{{ id }}" class="hidden mt-4 pt-3 border-t border-gray-800">
+                    <pre id="log-{{ id }}" class="bg-black p-3 rounded-lg text-[10px] h-32 overflow-y-auto custom-scroll font-mono text-purple-300 leading-tight">Waiting for logs...</pre>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        
+        {% if total_count == 0 %}
+        <div class="text-center py-10 opacity-50">
+            <i class="fas fa-server text-4xl mb-2 text-gray-600"></i>
+            <p class="text-xs">No servers deployed</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <button onclick="toggleModal(true)" class="fab fixed bottom-6 right-6 theme-gradient theme-gradient-hover text-white w-14 h-14 rounded-full shadow-[0_0_20px_rgba(168,85,247,0.5)] flex items-center justify-center text-xl z-50 transition">
+        <i class="fas fa-plus"></i>
+    </button>
+
+    <div id="createModal" class="hidden fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center">
+        <div class="bg-[#111] w-full sm:w-96 rounded-t-3xl sm:rounded-2xl border border-gray-800 p-6 modal-enter">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-white font-bold text-lg">Deploy New Server</h3>
+                <button onclick="toggleModal(false)" class="text-gray-500 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <form action="/create_server" method="POST" enctype="multipart/form-data" class="space-y-4">
+                <input type="text" name="server_name" placeholder="Name (e.g. MusicBot)" class="w-full bg-black border border-gray-700 p-3 rounded-xl text-white focus:border-purple-500 outline-none transition" required>
+                <input type="text" name="start_command" placeholder="Command (e.g. python3 bot.py)" class="w-full bg-black border border-gray-700 p-3 rounded-xl text-white focus:border-purple-500 outline-none transition" required>
+                <div class="border border-dashed border-gray-700 rounded-xl p-4 text-center">
+                    <input type="file" name="file" class="text-xs text-gray-400">
+                </div>
+                <button type="submit" class="w-full theme-gradient theme-gradient-hover text-white font-bold py-3 rounded-xl transition">Create & Start</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="manageModal" class="hidden fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="bg-[#111] w-full max-w-2xl h-[80vh] rounded-2xl border border-gray-800 flex flex-col modal-enter">
+            
+            <div class="p-4 border-b border-gray-800 flex justify-between items-center">
+                <div>
+                    <h3 class="text-white font-bold text-lg" id="manage-title">Server Manager</h3>
+                    <span id="manage-id" class="text-xs text-gray-500">ID: --</span>
+                </div>
+                <button onclick="closeSettings()" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            
+            <div class="flex border-b border-gray-800">
+                <button onclick="switchTab('console')" id="tab-console" class="flex-1 py-3 text-sm font-bold text-gray-400 hover:text-white theme-active-border">CONSOLE</button>
+                <button onclick="switchTab('files')" id="tab-files" class="flex-1 py-3 text-sm font-bold text-gray-400 hover:text-white">FILES</button>
+                <button onclick="switchTab('packages')" id="tab-packages" class="flex-1 py-3 text-sm font-bold text-gray-400 hover:text-white">PACKAGES</button>
+                <button onclick="switchTab('config')" id="tab-config" class="flex-1 py-3 text-sm font-bold text-gray-400 hover:text-white">CONFIG</button>
+            </div>
+
+            <div class="flex-1 overflow-hidden relative">
+                
+                <div id="view-console" class="absolute inset-0 flex flex-col p-4">
+                    <pre id="live-log" class="flex-1 bg-black p-4 rounded-xl text-[11px] font-mono text-purple-300 overflow-y-auto custom-scroll mb-3 border border-gray-800">Loading...</pre>
+                    <div class="flex gap-2">
+                        <input type="text" id="console-input" placeholder="Type command & press Enter..." class="flex-1 bg-black border border-gray-800 rounded-lg px-4 py-2 text-white text-sm focus:border-purple-500 outline-none transition">
+                        <button onclick="sendCommand()" class="bg-gray-800 hover:bg-gray-700 text-white px-4 rounded-lg"><i class="fas fa-paper-plane"></i></button>
+                    </div>
+                </div>
+
+                <div id="view-files" class="hidden absolute inset-0 flex flex-col p-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex gap-2">
+                            <button onclick="createNewFolder()" class="bg-gray-800 hover:bg-gray-700 text-white text-xs px-3 py-1.5 rounded-lg"><i class="fas fa-folder-plus mr-1"></i> New</button>
+                            <span id="current-path-display" class="text-xs text-gray-500 self-center font-mono">/</span>
+                        </div>
+                        <label class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded-lg cursor-pointer transition">
+                            <i class="fas fa-upload mr-1"></i> Upload
+                            <input type="file" id="upload-input" class="hidden" onchange="uploadFile(this)">
+                        </label>
+                    </div>
+                    <div class="flex-1 overflow-y-auto custom-scroll space-y-1" id="file-list">
+                        </div>
+                </div>
+
+                <div id="view-packages" class="hidden absolute inset-0 p-6 overflow-y-auto custom-scroll">
+                    <label class="block text-gray-500 text-xs uppercase tracking-widest mb-2">Install Package</label>
+                    
+                    <div class="flex flex-col sm:flex-row gap-3 mb-6">
+                        <select id="pkg-type" class="w-full sm:w-auto bg-black border border-gray-800 p-3 rounded-xl text-white outline-none focus:border-purple-500">
+                            <option value="pip">PIP (Python)</option>
+                            <option value="pkg">PKG (System)</option>
+                        </select>
+                        <input id="pkg-name" placeholder="Package name (e.g. requests)" class="flex-1 bg-black border border-gray-800 p-3 rounded-xl text-white focus:border-purple-500 outline-none transition">
+                        <button onclick="installPackage()" class="w-full sm:w-auto theme-gradient theme-gradient-hover text-white font-bold py-3 px-6 rounded-xl transition-all">
+                            INSTALL
+                        </button>
+                    </div>
+                    
+                    <div class="bg-black/50 p-4 rounded-xl border border-gray-800">
+                        <p class="text-[11px] text-gray-400">
+                            <i class="fas fa-info-circle mr-2 text-pink-500"></i> Provide correct package name.
+                        </p>
+                    </div>
+                </div>
+
+                <div id="view-config" class="hidden absolute inset-0 p-6 overflow-y-auto custom-scroll">
+                    <label class="block text-gray-500 text-xs uppercase tracking-widest mb-2">Start Command</label>
+                    <input id="config-cmd" class="w-full bg-black border border-gray-800 p-3 rounded-xl text-white focus:border-purple-500 outline-none mb-4 transition" value="">
+                    
+                    <label class="block text-gray-500 text-xs uppercase tracking-widest mb-2">Working Directory (Optional)</label>
+                    <input id="config-cwd" placeholder="Folder name (e.g. MyBot)" class="w-full bg-black border border-gray-800 p-3 rounded-xl text-white focus:border-purple-500 outline-none mb-6 transition" value="">
+                    
+                    <hr class="border-gray-800 mb-6">
+                    
+                    <label class="block text-gray-500 text-xs uppercase tracking-widest mb-2">Auto Restart</label>
+                    <div class="flex items-center gap-4 mb-6">
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="config-auto-restart" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
+                        </label>
+                        <select id="config-restart-interval" class="bg-black border border-gray-800 p-2 rounded-xl text-white outline-none text-sm focus:border-purple-500 transition">
+                            <option value="30s">Every 30 Seconds</option>
+                            <option value="1m">Every 1 Minute</option>
+                            <option value="5m">Every 5 Minutes</option>
+                            <option value="10m">Every 10 Minutes</option>
+                            <option value="30m">Every 30 Minutes</option>
+                            <option value="1h">Every 1 Hour</option>
+                            <option value="2h">Every 2 Hours</option>
+                            <option value="3h">Every 3 Hours</option>
+                            <option value="6h">Every 6 Hours</option>
+                            <option value="12h">Every 12 Hours</option>
+                            <option value="24h">Every 24 Hours</option>
+                        </select>
+                    </div>
+
+                    <button onclick="saveConfig()" class="w-full theme-gradient theme-gradient-hover text-white font-bold py-3 rounded-xl transition">SAVE CHANGES</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentServer = null;
+        let logInterval = null;
+        let currentPath = '';
+
+        function toggleModal(show) {
+            const modal = document.getElementById('createModal');
+            if (show) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        function toggleLog(id) {
+            const box = document.getElementById('log-box-' + id);
+            if (box) box.classList.toggle('hidden');
+        }
+
+        function openSettings(id) {
+            currentServer = id;
+            currentPath = ''; 
+            document.getElementById('manage-title').innerText = id;
+            document.getElementById('manage-id').innerText = "ID: " + id;
+            document.getElementById('manageModal').classList.remove('hidden');
+            document.getElementById('manageModal').classList.add('flex');
+            
+            switchTab('console');
+            loadFiles();
+        }
+
+        function closeSettings() {
+            document.getElementById('manageModal').classList.add('hidden');
+            document.getElementById('manageModal').classList.remove('flex');
+            currentServer = null;
+            if(logInterval) clearInterval(logInterval);
+        }
+
+        function switchTab(tab) {
+            ['console', 'files', 'packages', 'config'].forEach(t => {
+                document.getElementById('view-' + t).classList.add('hidden');
+                document.getElementById('tab-' + t).classList.remove('theme-active-border');
+            });
+            document.getElementById('view-' + tab).classList.remove('hidden');
+            document.getElementById('tab-' + tab).classList.add('theme-active-border');
+
+            if (tab === 'console') {
+                refreshLiveLog();
+                if(logInterval) clearInterval(logInterval);
+                logInterval = setInterval(refreshLiveLog, 1500);
+            } else {
+                if(logInterval) clearInterval(logInterval);
+            }
+        }
+
+        function refreshLiveLog() {
+            if (!currentServer) return;
+            fetch('/get_logs/' + currentServer).then(r => r.json()).then(d => {
+                const el = document.getElementById('live-log');
+                if(d.logs) {
+                    el.textContent = d.logs;
+                    el.scrollTop = el.scrollHeight;
+                }
+            });
+        }
+
+        function sendCommand() {
+            const input = document.getElementById('console-input');
+            const cmd = input.value;
+            if(!cmd || !currentServer) return;
+            const fd = new FormData();
+            fd.append('command', cmd);
+            fetch('/send_input/' + currentServer, { method: 'POST', body: fd });
+            input.value = '';
+        }
+        
+        document.getElementById('console-input').addEventListener("keypress", function(e) {
+            if (e.key === "Enter") sendCommand();
+        });
+
+        function loadFiles(subpath = null) {
+            if (!currentServer) return;
+            if (subpath !== null) currentPath = subpath;
+            
+            fetch(`/files/${currentServer}?path=${currentPath}`).then(r => r.json()).then(d => {
+                document.getElementById('config-cmd').value = d.cmd;
+                document.getElementById('config-cwd').value = d.cwd;
+                document.getElementById('config-auto-restart').checked = d.auto_restart;
+                document.getElementById('config-restart-interval').value = d.restart_interval || '1h';
+                document.getElementById('current-path-display').innerText = "/" + currentPath;
+
+                const list = document.getElementById('file-list');
+                list.innerHTML = '';
+                
+                if(currentPath) {
+                    const parent = currentPath.split('/').slice(0, -1).join('/');
+                    list.innerHTML += `
+                        <div onclick="loadFiles('${parent}')" class="flex items-center p-3 bg-gray-900/50 rounded-lg cursor-pointer hover:bg-gray-800 transition">
+                            <i class="fas fa-level-up-alt text-purple-500 mr-3"></i> <span class="text-sm text-gray-400">..</span>
+                        </div>`;
+                }
+                
+                if(d.files.length === 0) list.innerHTML += '<div class="text-gray-600 text-center mt-10">Empty directory</div>';
+
+                d.files.forEach(f => {
+                    const clickAction = f.type === 'dir' ? `onclick="loadFiles('${currentPath ? currentPath + '/' + f.name : f.name}')"` : '';
+                    const cursor = f.type === 'dir' ? 'cursor-pointer' : '';
+                    
+                    list.innerHTML += `
+                        <div class="flex justify-between items-center p-3 bg-black/40 rounded-lg border border-gray-800 hover:border-gray-600 transition group">
+                            <div class="${cursor} flex items-center gap-3 overflow-hidden flex-1" ${clickAction}>
+                                <i class="fas ${f.type === 'dir' ? 'fa-folder text-yellow-500' : 'fa-file-code text-gray-400'}"></i>
+                                <span class="text-sm text-gray-300 truncate">${f.name}</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="text-[10px] text-gray-600">${f.size}</span>
+                                <a href="/download/${currentServer}/${f.name}?path=${currentPath}" class="text-gray-500 hover:text-pink-500 transition"><i class="fas fa-download"></i></a>
+                                <button onclick="deleteFile('${f.name}')" class="text-gray-500 hover:text-red-500 transition"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                    `;
+                });
+            });
+        }
+
+        function uploadFile(input) {
+            if (!input.files[0] || !currentServer) return;
+            const fd = new FormData();
+            fd.append('file', input.files[0]);
+            fd.append('path', currentPath);
+            
+            input.parentElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            
+            fetch('/upload/' + currentServer, { method: 'POST', body: fd }).then(() => {
+                loadFiles();
+                document.getElementById('view-files').querySelector('label').innerHTML = '<i class="fas fa-upload mr-1"></i> Upload <input type="file" id="upload-input" class="hidden" onchange="uploadFile(this)">';
+            });
+        }
+
+        function createNewFolder() {
+            const name = prompt("Folder Name:");
+            if(name) {
+                const fd = new FormData();
+                fd.append('name', name);
+                fd.append('path', currentPath);
+                fetch('/create_folder/' + currentServer, { method: 'POST', body: fd }).then(() => loadFiles());
+            }
+        }
+
+        function deleteFile(name) {
+            if(confirm('Delete ' + name + '?')) {
+                fetch(`/delete_file/${currentServer}/${name}?path=${currentPath}`).then(() => loadFiles());
+            }
+        }
+
+        function installPackage() {
+            const type = document.getElementById('pkg-type').value;
+            const name = document.getElementById('pkg-name').value;
+            if(!name) {
+                alert("Please enter a package name!");
+                return;
+            }
+            
+            const fd = new FormData();
+            fd.append('type', type);
+            fd.append('name', name);
+            
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.innerText = "Starting...";
+            btn.disabled = true;
+
+            fetch('/install_pkg/' + currentServer, { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(d => {
+                btn.innerText = originalText;
+                btn.disabled = false;
+                document.getElementById('pkg-name').value = '';
+                switchTab('console');
+            });
+        }
+
+        function saveConfig() {
+            const cmd = document.getElementById('config-cmd').value;
+            const cwd = document.getElementById('config-cwd').value;
+            const autoRestart = document.getElementById('config-auto-restart').checked;
+            const restartInterval = document.getElementById('config-restart-interval').value;
+            
+            const fd = new FormData();
+            fd.append('cmd', cmd);
+            fd.append('cwd', cwd);
+            fd.append('auto_restart', autoRestart);
+            fd.append('restart_interval', restartInterval);
+            
+            fetch('/update_settings/' + currentServer, { method: 'POST', body: fd })
+                .then(() => alert('Settings Saved!'));
+        }
+
+        function forceRefreshLog(id) {
+            fetch('/get_logs/' + id).then(r => r.json()).then(d => {
+                const el = document.getElementById('log-' + id);
+                if (el && d.logs) {
+                    el.textContent = d.logs;
+                    el.scrollTop = el.scrollHeight;
+                }
+            }).catch(e => console.error(e));
+        }
+
+        setInterval(() => {
+            {% for id in servers %}
+            (function() {
+                const box = document.getElementById('log-box-{{ id }}');
+                if (box && !box.classList.contains('hidden')) {
+                    forceRefreshLog('{{ id }}');
+                }
+            })();
+            {% endfor %}
+        }, 2000);
+    </script>
+</body>
+</html>
